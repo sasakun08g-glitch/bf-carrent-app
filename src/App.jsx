@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================================================
-// 1. SUPABASE CONFIGURATION
+// 1. SUPABASE CONFIGURATION (อ่านค่าจาก .env หรือ Vercel Environment Variables)
 // ============================================================================
 const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
@@ -12,7 +12,7 @@ const supabase =
     : null;
 
 // ============================================================================
-// 2. INLINE SVG ICONS
+// 2. INLINE SVG ICONS (ไม่ต้องลง Library เสริม ใช้งานได้ทันทีไม่ติด Error)
 // ============================================================================
 const Icon = ({ name, className = 'w-4 h-4' }) => {
   const icons = {
@@ -86,6 +86,12 @@ const Icon = ({ name, className = 'w-4 h-4' }) => {
         <line x1="21" y1="12" x2="9" y2="12" />
       </svg>
     ),
+    plus: (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+    ),
     search: (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="11" cy="11" r="8" />
@@ -138,13 +144,6 @@ const Icon = ({ name, className = 'w-4 h-4' }) => {
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
       </svg>
     ),
-    printer: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="6 9 6 2 18 2 18 9" />
-        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-        <rect x="6" y="14" width="12" height="8" />
-      </svg>
-    ),
     more: (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="1" />
@@ -157,7 +156,7 @@ const Icon = ({ name, className = 'w-4 h-4' }) => {
 };
 
 // ============================================================================
-// 3. TRANSLATIONS (ไทย & English)
+// 3. TRANSLATIONS (รองรับ 2 ภาษา: ไทย & English)
 // ============================================================================
 const TRANSLATIONS = {
   th: {
@@ -249,7 +248,7 @@ const TRANSLATIONS = {
 };
 
 // ============================================================================
-// 4. INITIAL DATA FOR BF CARRENT
+// 4. INITIAL DATA FOR BF CARRENT (รถ 6 คัน, จอง 9 รายการ, บัญชี, Blacklist, Users)
 // ============================================================================
 const getRelativeDateStr = (offsetDays) => {
   const d = new Date();
@@ -317,12 +316,12 @@ const INITIAL_BLACKLIST = [
 ];
 
 const INITIAL_USERS = [
-  { id: 'u1', username: 'admin', password: '1234', fullName: 'เจ้าของร้าน BF CARRENT', role: 'owner', canViewFinance: true, active: true },
-  { id: 'u2', username: 'staff01', password: '1111', fullName: 'แอดมินรับจอง', role: 'staff', canViewFinance: false, active: true },
+  { id: 'u1', username: 'admin', password: '123', fullName: 'เจ้าของร้าน BF CARRENT', role: 'owner', canViewFinance: true, active: true },
+  { id: 'u2', username: 'staff01', password: '111', fullName: 'แอดมินรับจอง', role: 'staff', canViewFinance: false, active: true },
 ];
 
 // ============================================================================
-// 5. HELPER FUNCTIONS
+// 5. HELPER FUNCTIONS (ตรวจเลขบัตร ปชช. 13 หลัก & วิเคราะห์ความเสี่ยง)
 // ============================================================================
 function validateThaiID(id) {
   const clean = String(id || '').replace(/\D/g, '');
@@ -362,6 +361,7 @@ function analyzeRenterRisk(query, blacklist) {
   const idCheck = cleanDigits.length === 13 ? validateThaiID(cleanDigits) : null;
   const suspiciousKeywords = ['จำนำ', 'ขายรถ', 'ชายแดน', 'หนี', 'โกง', 'ปลอม', 'หมายจับ', 'แบล็คลิสต์'];
   const hasKeywordFlag = suspiciousKeywords.some((k) => q.includes(k));
+
   const isHighRisk = matchedBlacklist.length > 0 || (idCheck && idCheck.valid === false) || hasKeywordFlag;
 
   return {
@@ -476,6 +476,7 @@ CREATE POLICY "Allow all bf_users" ON bf_users FOR ALL USING (true) WITH CHECK (
 // 6. MAIN APPLICATION COMPONENT
 // ============================================================================
 export default function App() {
+  // Language & Auth State
   const [lang, setLang] = useState(() => localStorage.getItem('bf_lang') || 'th');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
@@ -490,6 +491,7 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
+  // App Data State (Persist in localStorage + Sync with Supabase if configured)
   const [cars, setCars] = useState(() => {
     try {
       const s = localStorage.getItem('bf_cars');
@@ -525,12 +527,19 @@ export default function App() {
   const [users, setUsers] = useState(() => {
     try {
       const s = localStorage.getItem('bf_users');
-      return s ? JSON.parse(s) : INITIAL_USERS;
+      // รองรับรหัสผ่านเริ่มต้นทั้ง 1234 / 1111 และค่าเดิม
+      return s
+        ? JSON.parse(s)
+        : [
+            { id: 'u1', username: 'admin', password: '1234', fullName: 'เจ้าของร้าน BF CARRENT', role: 'owner', canViewFinance: true, active: true },
+            { id: 'u2', username: 'staff01', password: '1111', fullName: 'แอดมินรับจอง', role: 'staff', canViewFinance: false, active: true },
+          ];
     } catch {
       return INITIAL_USERS;
     }
   });
 
+  // Navigation & UI State
   const [activeTab, setActiveTab] = useState('schedule');
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [toast, setToast] = useState(null);
@@ -539,13 +548,14 @@ export default function App() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
+  // Modals State
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
-  const [contractBooking, setContractBooking] = useState(null);
   const [dbModalOpen, setDbModalOpen] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [blacklistModalOpen, setBlacklistModalOpen] = useState(false);
   const [txModalOpen, setTxModalOpen] = useState(false);
 
+  // Forms State
   const [bookingForm, setBookingForm] = useState({
     customerName: '',
     phone: '',
@@ -588,6 +598,7 @@ export default function App() {
     setTimeout(() => setToast(null), 3200);
   };
 
+  // Persist to localStorage
   useEffect(() => { localStorage.setItem('bf_lang', lang); }, [lang]);
   useEffect(() => { localStorage.setItem('bf_cars', JSON.stringify(cars)); }, [cars]);
   useEffect(() => { localStorage.setItem('bf_bookings', JSON.stringify(bookings)); }, [bookings]);
@@ -595,6 +606,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('bf_blacklist', JSON.stringify(blacklist)); }, [blacklist]);
   useEffect(() => { localStorage.setItem('bf_users', JSON.stringify(users)); }, [users]);
 
+  // Initial Load from Supabase if connected
   useEffect(() => {
     if (!supabase) return;
     (async () => {
@@ -643,6 +655,7 @@ export default function App() {
     })();
   }, []);
 
+  // Auth Handlers
   const handleLogin = (e) => {
     e.preventDefault();
     const matched = users.find(
@@ -664,6 +677,7 @@ export default function App() {
     localStorage.removeItem('bf_current_user');
   };
 
+  // Permissions & Computed KPIs
   const isOwnerUser = currentUser?.role === 'owner';
   const canAccessFinance = isOwnerUser || Boolean(currentUser?.canViewFinance);
 
@@ -684,6 +698,7 @@ export default function App() {
     };
   }, [cars, bookings, transactions]);
 
+  // Calendar Days Generator for Current Month
   const calendarDays = useMemo(() => {
     const year = currentMonthDate.getFullYear();
     const month = currentMonthDate.getMonth();
@@ -698,6 +713,7 @@ export default function App() {
     return cells;
   }, [currentMonthDate]);
 
+  // Live Risk Check inside Booking Modal
   const liveBookingRisk = useMemo(() => {
     const combined = `${bookingForm.idCard} ${bookingForm.customerName} ${bookingForm.phone}`.trim();
     if (!combined) return null;
@@ -706,6 +722,7 @@ export default function App() {
     return { idCheck, risk };
   }, [bookingForm.idCard, bookingForm.customerName, bookingForm.phone, blacklist]);
 
+  // Create Booking Handler
   const handleCreateBooking = async (e) => {
     e.preventDefault();
     const car = cars.find((c) => c.id === bookingForm.carId) || cars[0];
@@ -760,6 +777,7 @@ export default function App() {
     showToast(`บันทึกการจอง ${newBooking.id} สำเร็จ!`);
   };
 
+  // Add Blacklist Handler
   const handleAddBlacklist = async (e) => {
     e.preventDefault();
     const item = {
@@ -786,6 +804,7 @@ export default function App() {
     showToast('บันทึกข้อมูลลง Blacklist ร้านเรียบร้อยแล้ว');
   };
 
+  // Add User Handler
   const handleAddUser = async (e) => {
     e.preventDefault();
     const u = {
@@ -809,6 +828,7 @@ export default function App() {
     showToast(`เพิ่มผู้ใช้งาน ${u.fullName} เรียบร้อยแล้ว`);
   };
 
+  // Add Transaction Handler
   const handleAddTx = async (e) => {
     e.preventDefault();
     const tx = {
@@ -828,6 +848,7 @@ export default function App() {
     showToast('บันทึกรายการบัญชีสำเร็จ');
   };
 
+  // Sync Initial Data to Supabase
   const handlePushInitialToSupabase = async () => {
     if (!supabase) {
       showToast('ยังไม่ได้ตั้งค่า VITE_SUPABASE_URL และ VITE_SUPABASE_ANON_KEY', 'error');
@@ -870,11 +891,12 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 7. LOGIN GATE SCREEN
+  // 7. LOGIN GATE SCREEN (พร้อม Dropdown เลือกภาษา ไทย / English ไม่มีตัวย่อ TH/GB)
   // ==========================================================================
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 flex flex-col justify-between p-4 sm:p-6">
+        {/* Top Bar with Language Dropdown */}
         <div className="w-full max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5 text-white">
             <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
@@ -886,6 +908,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Language Dropdown (ไม่มีตัวย่อ TH, GB) */}
           <div className="relative">
             <button
               type="button"
@@ -919,6 +942,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* Center Login Card */}
         <div className="w-full max-w-md mx-auto my-auto py-8">
           <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-6 sm:p-8 border border-white/20">
             <div className="text-center mb-6">
@@ -967,6 +991,7 @@ export default function App() {
               </button>
             </form>
 
+            {/* Quick Demo Login Buttons */}
             <div className="mt-6 pt-5 border-t border-slate-100">
               <div className="text-xs font-medium text-slate-400 text-center mb-2.5">{t.demoAccounts}</div>
               <div className="grid grid-cols-2 gap-2">
@@ -1016,6 +1041,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-20 lg:pb-8">
+      {/* Toast Notification */}
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium text-white flex items-center gap-2 ${
@@ -1027,9 +1053,12 @@ export default function App() {
         </div>
       )}
 
-      {/* TOP HEADER */}
+      {/* ==================================================================== */}
+      {/* TOP HEADER (ปุ่มล็อกเอาต์อยู่ขวาสุดเสมอ)                                   */}
+      {/* ==================================================================== */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80">
         <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+          {/* Left: Brand */}
           <div className="flex items-center gap-2.5 shrink-0">
             <div className="w-9 h-9 rounded-xl bg-emerald-950 flex items-center justify-center text-emerald-400 shadow-sm">
               <Icon name="car" className="w-5 h-5" />
@@ -1042,6 +1071,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Center: Desktop / Tablet Navigation */}
           <nav className="hidden lg:flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl">
             {navItems.map((item) => (
               <button
@@ -1060,11 +1090,13 @@ export default function App() {
             ))}
           </nav>
 
+          {/* Rightmost: Action + User Badge + Logout Button on Far Right */}
           <div className="flex items-center gap-2 ml-auto shrink-0">
             <button
               type="button"
               onClick={() => setDbModalOpen(true)}
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+              title="Supabase / Cloud Status"
             >
               <span className={`w-2 h-2 rounded-full ${supabase ? 'bg-emerald-500' : 'bg-amber-400'}`} />
               <span className="hidden md:inline">{supabase ? 'Cloud Sync' : t.dbSetupBtn}</span>
@@ -1078,6 +1110,7 @@ export default function App() {
               {t.newBooking}
             </button>
 
+            {/* User Pill + Logout Button at Far Right */}
             <div className="flex items-center gap-2 pl-2.5 pr-1 py-1 rounded-full bg-slate-100 border border-slate-200/80">
               <div className="w-7 h-7 rounded-full bg-emerald-950 text-amber-300 flex items-center justify-center text-xs font-bold">
                 {currentUser.fullName?.charAt(0) || 'U'}
@@ -1098,9 +1131,11 @@ export default function App() {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
+      {/* ==================================================================== */}
+      {/* MAIN CONTENT AREA                                                    */}
+      {/* ==================================================================== */}
       <main className="w-full max-w-[1440px] mx-auto px-3 sm:px-6 pt-5 space-y-6">
-        {/* KPI BAR */}
+        {/* KPI SUMMARY BAR (แสดงทุกหน้าหลัก) */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
             <div className="text-xs font-medium text-slate-500">{t.kpiTotalCars}</div>
@@ -1133,7 +1168,9 @@ export default function App() {
           </div>
         </section>
 
-        {/* TAB 1: DASHBOARD */}
+        {/* ================================================================== */}
+        {/* TAB 1: DASHBOARD OVERVIEW                                          */}
+        {/* ================================================================== */}
         {activeTab === 'dashboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 p-5 shadow-sm">
@@ -1227,10 +1264,13 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: SCHEDULE & CALENDAR */}
+        {/* ================================================================== */}
+        {/* TAB 2: SCHEDULE & 6-CAR QUEUE (ไม่มีแถบเดือน, ไม่มีตัวย่อวันในช่อง, ข้อความอยู่กึ่งกลางช่อง) */}
+        {/* ================================================================== */}
         {activeTab === 'schedule' && (
           <div className="space-y-5">
             <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
+              {/* Header with ONLY < Month Year > navigation (ลบแถบ ม.ค.-ธ.ค. ออกแล้ว) */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">{t.scheduleTitle}</h2>
@@ -1257,6 +1297,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Monthly Calendar Grid (ไม่มีตัวย่อวันในช่อง, สถานะ ส่งรถ/คืนรถ/ใช้งาน อยู่กึ่งกลางช่อง) */}
               <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                 {calendarDays.map((cell, idx) => {
                   if (!cell) {
@@ -1279,6 +1320,7 @@ export default function App() {
                           : 'border-slate-200/80 bg-white hover:border-emerald-300'
                       }`}
                     >
+                      {/* Top: ONLY Day Number (ไม่มีตัวย่อวัน อา. จ. อ.) */}
                       <div className="flex items-center justify-between">
                         <span className={`text-xs sm:text-sm font-bold ${isToday ? 'text-emerald-800' : 'text-slate-700'}`}>
                           {cell.day}
@@ -1290,6 +1332,7 @@ export default function App() {
                         )}
                       </div>
 
+                      {/* Center: Status Badges Centered Horizontally & Vertically */}
                       <div className="flex-1 flex flex-col items-center justify-center gap-1 my-auto">
                         {pickups.length > 0 && (
                           <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] sm:text-xs font-bold text-center leading-tight">
@@ -1313,6 +1356,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* 6-Car Fleet Status Matrix */}
             <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
               <h3 className="text-base font-bold text-slate-900 mb-4">สถานะคิวรถรายคัน (6 คัน)</h3>
               <div className="overflow-x-auto">
@@ -1388,13 +1432,15 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: BOOKINGS LIST + PRINT CONTRACT */}
+        {/* ================================================================== */}
+        {/* TAB 3: BOOKINGS LIST (9+ รายการ)                                    */}
+        {/* ================================================================== */}
         {activeTab === 'bookings' && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">รายการจองรถทั้งหมด ({bookings.length} รายการ)</h2>
-                <p className="text-xs text-slate-500">จัดการสถานะรับรถ คืนรถ และพิมพ์สัญญาเช่า/ใบเสร็จ</p>
+                <p className="text-xs text-slate-500">จัดการสถานะรับรถ คืนรถ และตรวจสอบข้อมูลผู้เช่า</p>
               </div>
               <button
                 type="button"
@@ -1406,7 +1452,7 @@ export default function App() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[820px]">
+              <table className="w-full text-left border-collapse min-w-[760px]">
                 <thead>
                   <tr className="border-b border-slate-200 text-xs text-slate-500">
                     <th className="py-3 px-3">รหัสจอง</th>
@@ -1415,7 +1461,6 @@ export default function App() {
                     <th className="py-3 px-3">วันรับ - วันคืน</th>
                     <th className="py-3 px-3">ยอดรวม</th>
                     <th className="py-3 px-3">สถานะ</th>
-                    <th className="py-3 px-3 text-right">เอกสาร</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
@@ -1455,16 +1500,6 @@ export default function App() {
                             <option value="cancelled">ยกเลิก</option>
                           </select>
                         </td>
-                        <td className="py-3.5 px-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setContractBooking({ bk, car })}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 text-xs font-semibold"
-                          >
-                            <Icon name="printer" className="w-3.5 h-3.5" />
-                            <span>สัญญาเช่า</span>
-                          </button>
-                        </td>
                       </tr>
                     );
                   })}
@@ -1474,7 +1509,9 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: RISK CHECK */}
+        {/* ================================================================== */}
+        {/* TAB 4: RENTER RISK & BLACKLIST SCREENING                           */}
+        {/* ================================================================== */}
         {activeTab === 'risk' && (
           <div className="space-y-5">
             <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm">
@@ -1510,6 +1547,7 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Risk Scan Result Card */}
               {riskResult && (
                 <div
                   className={`mt-5 p-5 rounded-2xl border ${
@@ -1594,6 +1632,7 @@ export default function App() {
               )}
             </div>
 
+            {/* Store Blacklist Directory */}
             <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm">
               <h3 className="text-base font-bold text-slate-900 mb-3">ฐานข้อมูลบุคคลเฝ้าระวัง / Blacklist ({blacklist.length} รายชื่อ)</h3>
               <div className="space-y-3">
@@ -1621,7 +1660,9 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: FLEET & MAINTENANCE */}
+        {/* ================================================================== */}
+        {/* TAB 5: FLEET & MAINTENANCE                                         */}
+        {/* ================================================================== */}
         {activeTab === 'fleet' && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
             <h2 className="text-lg font-bold text-slate-900 mb-4">ข้อมูลรถเช่าทั้ง 6 คัน & การซ่อมบำรุง</h2>
@@ -1671,7 +1712,9 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 6: FINANCE & TAX */}
+        {/* ================================================================== */}
+        {/* TAB 6: FINANCE & TAX                                               */}
+        {/* ================================================================== */}
         {activeTab === 'finance' && canAccessFinance && (
           <div className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1734,7 +1777,9 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 7: USERS */}
+        {/* ================================================================== */}
+        {/* TAB 7: USER MANAGEMENT (Owner Only)                                */}
+        {/* ================================================================== */}
         {activeTab === 'users' && isOwnerUser && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -1801,7 +1846,9 @@ export default function App() {
         )}
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION */}
+      {/* ==================================================================== */}
+      {/* MOBILE BOTTOM NAVIGATION (รองรับมือถือไม่ล้นจอ)                        */}
+      {/* ==================================================================== */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around">
         {navItems.slice(0, 4).map((item) => (
           <button
@@ -1853,7 +1900,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: NEW BOOKING */}
+      {/* ==================================================================== */}
+      {/* MODAL 1: NEW BOOKING + LIVE RENTER RISK SCREENING                    */}
+      {/* ==================================================================== */}
       {bookingModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl my-auto">
@@ -1898,6 +1947,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Live Renter Risk Alert inside Booking Form */}
               {liveBookingRisk && (liveBookingRisk.idCheck?.valid === false || liveBookingRisk.risk?.isHighRisk) && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-1">
                   <div className="font-bold">คำเตือนระบบคัดกรองความเสี่ยง:</div>
@@ -1969,56 +2019,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: RENTAL CONTRACT / RECEIPT PRINT */}
-      {contractBooking && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl my-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-4">
-              <div>
-                <h3 className="text-lg font-extrabold text-slate-900">BF CARRENT — สัญญาเช่ารถยนต์ & ใบเสร็จ</h3>
-                <p className="text-xs text-slate-500">เลขที่เอกสาร: {contractBooking.bk.id}</p>
-              </div>
-              <button type="button" onClick={() => setContractBooking(null)} className="text-slate-400 hover:text-slate-700 text-xl font-bold">×</button>
-            </div>
-            <div className="space-y-3 text-xs sm:text-sm text-slate-700">
-              <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-slate-50">
-                <div><span className="text-slate-400">ผู้เช่า:</span> <strong>{contractBooking.bk.customerName}</strong></div>
-                <div><span className="text-slate-400">เบอร์โทร:</span> <strong>{contractBooking.bk.phone}</strong></div>
-                <div className="col-span-2"><span className="text-slate-400">เลขบัตรประชาชน:</span> <strong>{contractBooking.bk.idCard || '-'}</strong></div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-slate-50">
-                <div><span className="text-slate-400">รถยนต์:</span> <strong>{contractBooking.car?.name}</strong></div>
-                <div><span className="text-slate-400">ทะเบียน:</span> <strong>{contractBooking.car?.plate}</strong></div>
-                <div><span className="text-slate-400">วันรับรถ:</span> <strong>{contractBooking.bk.startDate}</strong></div>
-                <div><span className="text-slate-400">วันคืนรถ:</span> <strong>{contractBooking.bk.endDate}</strong></div>
-                <div className="col-span-2"><span className="text-slate-400">จุดรับ-ส่งรถ:</span> <strong>{contractBooking.bk.pickupLocation}</strong></div>
-              </div>
-              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center">
-                <div>
-                  <div className="text-xs text-emerald-800">ค่าเช่ารวม ({contractBooking.bk.days} วัน)</div>
-                  <div className="text-xs text-emerald-700">เงินประกันความเสียหาย: ฿{Number(contractBooking.bk.deposit || 3000).toLocaleString()}</div>
-                </div>
-                <div className="text-xl font-extrabold text-emerald-950">
-                  ฿{Number(contractBooking.bk.totalAmount).toLocaleString()}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button type="button" onClick={() => setContractBooking(null)} className="px-4 py-2 rounded-xl bg-slate-100 text-xs font-semibold">ปิด</button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-4 py-2 rounded-xl bg-emerald-950 text-white text-xs font-semibold flex items-center gap-1.5"
-              >
-                <Icon name="printer" className="w-4 h-4" />
-                <span>สั่งพิมพ์ / บันทึก PDF</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD BLACKLIST */}
+      {/* ==================================================================== */}
+      {/* MODAL 2: ADD BLACKLIST                                               */}
+      {/* ==================================================================== */}
       {blacklistModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
@@ -2065,7 +2068,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD USER */}
+      {/* ==================================================================== */}
+      {/* MODAL 3: ADD USER                                                    */}
+      {/* ==================================================================== */}
       {userModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
@@ -2124,7 +2129,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD TRANSACTION */}
+      {/* ==================================================================== */}
+      {/* MODAL 4: ADD TRANSACTION                                             */}
+      {/* ==================================================================== */}
       {txModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
@@ -2179,7 +2186,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: SUPABASE DATABASE SETUP */}
+      {/* ==================================================================== */}
+      {/* MODAL 5: SUPABASE DATABASE SETUP                                     */}
+      {/* ==================================================================== */}
       {dbModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl max-h-[85vh] flex flex-col">
